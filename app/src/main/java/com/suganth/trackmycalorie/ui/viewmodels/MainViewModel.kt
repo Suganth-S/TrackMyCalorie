@@ -15,6 +15,4 @@ import javax.inject.Inject
  */
 class MainViewModel @ViewModelInject constructor(
     val mainRepository: MainRepository
-): ViewModel() {
-
-}
+): ViewModel()
