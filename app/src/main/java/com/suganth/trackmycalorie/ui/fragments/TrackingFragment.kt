@@ -1,11 +1,13 @@
 package com.suganth.trackmycalorie.ui.fragments
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import com.google.android.gms.maps.GoogleMap
 import com.suganth.trackmycalorie.R
+import com.suganth.trackmycalorie.services.TrackingServices
 import com.suganth.trackmycalorie.ui.viewmodels.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.android.synthetic.main.fragment_tracking.*
@@ -24,6 +26,15 @@ class TrackingFragment:Fragment(R.layout.fragment_tracking) {
         mapView.getMapAsync{
             map = it
         }
+    }
+
+    /**
+     * Function that delivers this intents to our service and
+     * react to that command
+     */
+    private fun sendCommandtoService(action: String) = Intent(requireContext(), TrackingServices::class.java).also{
+        it.action = action
+        requireContext().startService(it)
     }
 
     override fun onResume() {
