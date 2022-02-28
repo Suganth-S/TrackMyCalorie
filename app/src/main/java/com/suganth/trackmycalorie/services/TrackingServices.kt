@@ -30,7 +30,12 @@ import com.suganth.trackmycalorie.other.Constants.LOCATION_UPDATE_INTERVAL
 import com.suganth.trackmycalorie.other.Constants.NOTIFICATION_CHANNEL_ID
 import com.suganth.trackmycalorie.other.Constants.NOTIFICATION_CHANNEL_NAME
 import com.suganth.trackmycalorie.other.Constants.NOTIFICATION_ID
+import com.suganth.trackmycalorie.other.Constants.TIMER_UPDATE_INTERVAL
 import com.suganth.trackmycalorie.other.TrackingUtility
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import timber.log.Timber
 typealias PolyLine = MutableList<LatLng>
 typealias PolyLines = MutableList<PolyLine>
@@ -48,8 +53,10 @@ class TrackingServices : LifecycleService() {
      * for that when we want to get new location update, for that we need call back to get the actual location results
      */
     lateinit var fusedLocationProviderClient: FusedLocationProviderClient
+    private val timeRunInSeconds = MutableLiveData<Long>()
 
     companion object{
+        val timeInMillis = MutableLiveData<Long>()
         val istracking = MutableLiveData<Boolean>()
         /**
          * Whenever we get a new co-ordinate inside of our polyline list then we can observe on that change
@@ -63,6 +70,8 @@ class TrackingServices : LifecycleService() {
         istracking.postValue(false)
         //an empty list because we don't have any co-ordinates in the beginning
         pathPoints.postValue(mutableListOf())
+        timeRunInSeconds.postValue(0L)
+        timeInMillis.postValue(0L)
     }
 
     override fun onCreate() {
@@ -89,6 +98,7 @@ class TrackingServices : LifecycleService() {
                         isFirstRun = false
                     }else {
                         Timber.d("Started or resumed service")
+                        starttimer()
                     }
                 }
                 Constants.ACTION_STOP_SERVICE -> {
@@ -96,10 +106,47 @@ class TrackingServices : LifecycleService() {
                 }
                 Constants.ACTION_PAUSE_SERVICE -> {
                     Timber.d("Paused service")
+                    pauseService()
                 }
             }
         }
         return super.onStartCommand(intent, flags, startId)
+    }
+
+    private var istimerEnabled = false
+    private var laptime = 0L
+    private var timeRun = 0L
+    private var timeStrated = 0L
+    private var lastSecondtimeStamp = 0L
+
+    private fun starttimer(){
+        addEmptyPolyLine()
+        istracking.postValue(true)
+        timeStrated = System.currentTimeMillis()
+        istimerEnabled = true
+        /**
+         * instead of calling LiveData, we use Coroutine to observe the changes
+         */
+        CoroutineScope(Dispatchers.Main).launch {
+            while (istracking.value!!)
+            {
+                //time differenc between now and timeStarted
+                laptime = System.currentTimeMillis()- timeStrated
+                //post the new Laptime
+                timeInMillis.postValue(timeRun+laptime)
+                if(timeInMillis.value!! >= lastSecondtimeStamp+1000L){
+                    timeRunInSeconds.postValue( timeRunInSeconds.value!!+1)
+                    lastSecondtimeStamp+=1000L
+                }
+                delay(TIMER_UPDATE_INTERVAL)
+            }
+            timeRun+=laptime
+        }
+    }
+
+    private fun pauseService(){
+        istracking.postValue(false)
+        istimerEnabled = false
     }
 
     @SuppressLint("MissingPermission")
@@ -154,7 +201,7 @@ class TrackingServices : LifecycleService() {
     } ?: pathPoints.postValue(mutableListOf(mutableListOf()))
 
     private fun startForegroundService() {
-        addEmptyPolyLine()
+        starttimer()
         istracking.postValue(true)
 
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE)
